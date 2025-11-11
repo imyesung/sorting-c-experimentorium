@@ -37,6 +37,9 @@ static const int QUADRATIC_SIZES[] = {
     50000
 };
 
+#define PATTERN_TEST_SIZE_SMALL 100000
+#define PATTERN_TEST_SIZE_LARGE 1000000
+
 static void counting_sort_wrapper(int *arr, int n) {
     if (arr == NULL || n <= 0) {
         return;
@@ -117,7 +120,9 @@ void benchmark_by_size(void (*sort_func)(int*, int), const char *name,
     fclose(fp);
 }
 
-void benchmark_by_pattern(void (*sort_func)(int*, int), const char *name, int size) {
+void benchmark_by_pattern(void (*sort_func)(int*, int), const char *name,
+                          bool is_slow_algorithm,
+                          bool include_large_inputs) {
     FILE *fp = fopen("results/pattern_benchmark.csv", "a");
     if (fp == NULL) {
         printf("Error: Could not open results/pattern_benchmark.csv for writing\n");
@@ -125,6 +130,14 @@ void benchmark_by_pattern(void (*sort_func)(int*, int), const char *name, int si
     }
 
     DataPattern patterns[] = {RANDOM, SORTED, REVERSE_SORTED, NEARLY_SORTED};
+
+    int size;
+    if (is_slow_algorithm) {
+        size = PATTERN_TEST_SIZE_SMALL;
+    } else {
+        size = include_large_inputs ? PATTERN_TEST_SIZE_LARGE
+                                    : PATTERN_TEST_SIZE_SMALL;
+    }
 
     printf("Testing %s with different patterns (size=%d):\n", name, size);
 
@@ -140,8 +153,8 @@ void benchmark_by_pattern(void (*sort_func)(int*, int), const char *name, int si
 
         printf("  Pattern: %s...\n", pattern_names[i]);
 
-        double time = benchmark_sort(sort_func, arr, size);
-        fprintf(fp, "%s,%s,%d,%.6f\n", name, pattern_names[i], size, time);
+    double time = benchmark_sort(sort_func, arr, size);
+    fprintf(fp, "%s,%s,%d,%.6f\n", name, pattern_names[i], size, time);
 
         free(arr);
     }
@@ -187,19 +200,19 @@ void run_all_benchmarks(bool include_large_inputs) {
 
     printf("[1/10] Selection Sort\n");
     benchmark_by_size(selection_sort, "SelectionSort", RANDOM, true, include_large_inputs);
-    benchmark_by_pattern(selection_sort, "SelectionSort", 10000);
+    benchmark_by_pattern(selection_sort, "SelectionSort", true, include_large_inputs);
 
     printf("\n[2/10] Bubble Sort\n");
     benchmark_by_size(bubble_sort, "BubbleSort", RANDOM, true, include_large_inputs);
     printf("  -> Best-case (sorted input) sweep\n");
     benchmark_by_size(bubble_sort, "BubbleSort", SORTED, true, include_large_inputs);
-    benchmark_by_pattern(bubble_sort, "BubbleSort", 10000);
+    benchmark_by_pattern(bubble_sort, "BubbleSort", true, include_large_inputs);
 
     printf("\n[3/10] Insertion Sort\n");
     benchmark_by_size(insertion_sort, "InsertionSort", RANDOM, true, include_large_inputs);
     printf("  -> Best-case (sorted input) sweep\n");
     benchmark_by_size(insertion_sort, "InsertionSort", SORTED, true, include_large_inputs);
-    benchmark_by_pattern(insertion_sort, "InsertionSort", 10000);
+    benchmark_by_pattern(insertion_sort, "InsertionSort", true, include_large_inputs);
 
     // O(n log n) algorithms - test with all sizes
     printf("\n=== Testing O(n log n) Algorithms ===\n");
@@ -209,34 +222,34 @@ void run_all_benchmarks(bool include_large_inputs) {
 
     printf("[4/10] Merge Sort\n");
     benchmark_by_size(merge_sort, "MergeSort", RANDOM, false, include_large_inputs);
-    benchmark_by_pattern(merge_sort, "MergeSort", 1000000);
+    benchmark_by_pattern(merge_sort, "MergeSort", false, include_large_inputs);
 
     printf("\n[5/10] Quick Sort\n");
     benchmark_by_size(quick_sort, "QuickSort", RANDOM, false, include_large_inputs);
-    benchmark_by_pattern(quick_sort, "QuickSort", 1000000);
+    benchmark_by_pattern(quick_sort, "QuickSort", false, include_large_inputs);
 
     printf("\n[6/10] Heap Sort\n");
     benchmark_by_size(heap_sort, "HeapSort", RANDOM, false, include_large_inputs);
-    benchmark_by_pattern(heap_sort, "HeapSort", 1000000);
+    benchmark_by_pattern(heap_sort, "HeapSort", false, include_large_inputs);
 
     // Special algorithms
     printf("\n=== Testing Special Algorithms ===\n\n");
 
     printf("[7/10] Shell Sort\n");
     benchmark_by_size(shell_sort, "ShellSort", RANDOM, false, include_large_inputs);
-    benchmark_by_pattern(shell_sort, "ShellSort", 1000000);
+    benchmark_by_pattern(shell_sort, "ShellSort", false, include_large_inputs);
 
     printf("\n[8/10] Counting Sort\n");
     benchmark_by_size(counting_sort_wrapper, "CountingSort", RANDOM, false, include_large_inputs);
-    benchmark_by_pattern(counting_sort_wrapper, "CountingSort", 1000000);
+    benchmark_by_pattern(counting_sort_wrapper, "CountingSort", false, include_large_inputs);
 
     printf("\n[9/10] Radix Sort\n");
     benchmark_by_size(radix_sort, "RadixSort", RANDOM, false, include_large_inputs);
-    benchmark_by_pattern(radix_sort, "RadixSort", 1000000);
+    benchmark_by_pattern(radix_sort, "RadixSort", false, include_large_inputs);
 
     printf("\n[10/10] Bucket Sort\n");
     benchmark_by_size(bucket_sort, "BucketSort", RANDOM, false, include_large_inputs);
-    benchmark_by_pattern(bucket_sort, "BucketSort", 1000000);
+    benchmark_by_pattern(bucket_sort, "BucketSort", false, include_large_inputs);
 
     printf("\n=== All Benchmarks Completed ===\n");
 }

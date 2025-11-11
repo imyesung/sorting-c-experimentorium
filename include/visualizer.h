@@ -11,10 +11,9 @@ void plot_size_comparison(const char *output_file);
 
 /**
  * Plot performance comparison by data pattern
- * Bar chart showing best/average/worst case performance
- * Highlights which patterns affect which algorithms
+ * Generates separate grouped charts for comparison-based vs special algorithms
  */
-void plot_pattern_comparison(const char *output_file);
+void plot_pattern_comparison(void);
 
 /**
  * Generate all visualization graphs

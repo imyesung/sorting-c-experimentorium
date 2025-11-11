@@ -16,6 +16,12 @@ typedef enum {
     TREND_N2
 } TrendLine;
 
+typedef struct {
+    char name[MAX_NAME_LENGTH];
+    double times[4];
+    bool seen[4];
+} PatternEntry;
+
 static void plot_group(const char *output_file, const char *title,
                        const char *algorithms[], int count,
                        const char *pattern_filter,
@@ -117,29 +123,33 @@ cleanup:
         fprintf(gp, "set xlabel 'Input Size (log scale)' font 'Arial,14'\n");
         fprintf(gp, "set ylabel 'Execution Time (seconds, log scale)' font 'Arial,14'\n");
         fprintf(gp, "set logscale xy\n");
+        fprintf(gp, "set autoscale\n");
     } else {
         fprintf(gp, "set xlabel 'Input Size' font 'Arial,14'\n");
         fprintf(gp, "set ylabel 'Execution Time (seconds)' font 'Arial,14'\n");
         fprintf(gp, "unset logscale\n");
+        fprintf(gp, "set autoscale\n");
+        fprintf(gp, "set yrange [*:*]\n");
     }
     fprintf(gp, "set grid\n");
     fprintf(gp, "set key outside right top\n");
     fprintf(gp, "set datafile separator ','\n");
+    fprintf(gp, "set style line 100 lc rgb '#888888' lt 1 lw 2 dt 3\n");
 
     double trend_factor = 0.0;
     const char *trend_title = NULL;
     if (reference_size > 0.0 && reference_time > 0.0) {
         if (trend == TREND_N) {
             trend_factor = reference_time / reference_size;
-            trend_title = "O(n) reference";
+            trend_title = "Theoretical guide (O(n))";
         } else if (trend == TREND_N2) {
             trend_factor = reference_time / (reference_size * reference_size);
-            trend_title = "O(n^2) reference";
+            trend_title = "Theoretical guide (O(n^2))";
         } else if (trend == TREND_NLOGN) {
             double log_term = log(reference_size);
             if (log_term > 0.0) {
                 trend_factor = reference_time / (reference_size * log_term);
-                trend_title = "O(n log n) reference";
+                trend_title = "Theoretical guide (O(n log n))";
             }
         }
     }
@@ -166,7 +176,7 @@ cleanup:
     }
 
     if (trend != TREND_NONE && trend_title != NULL) {
-        fprintf(gp, "f(x) with lines title '%s' lw 2 dt 3", trend_title);
+        fprintf(gp, "f(x) with lines ls 100 title '%s'", trend_title);
     }
     fprintf(gp, "\n");
     fflush(gp);
@@ -196,6 +206,87 @@ static int pattern_index(const char *pattern) {
     return -1;
 }
 
+static PatternEntry *find_pattern_entry(PatternEntry *entries, int entry_count,
+                                        const char *name) {
+    for (int i = 0; i < entry_count; i++) {
+        if (strcmp(entries[i].name, name) == 0) {
+            return &entries[i];
+        }
+    }
+    return NULL;
+}
+
+static void plot_pattern_subset(const char *output_file, const char *title,
+                                PatternEntry *entries, int entry_count,
+                                const char *const *names, int name_count) {
+    const char *temp_path = "results/.temp_pattern_subset.dat";
+    FILE *temp = fopen(temp_path, "w");
+    if (temp == NULL) {
+        printf("Error: Could not create %s\n", temp_path);
+        return;
+    }
+
+    fprintf(temp, "Algorithm,Random,Sorted,ReverseSorted,NearlySorted\n");
+    int rows_written = 0;
+
+    for (int i = 0; i < name_count; i++) {
+        PatternEntry *entry = find_pattern_entry(entries, entry_count, names[i]);
+        if (entry == NULL) {
+            continue;
+        }
+
+        fprintf(temp, "%s", entry->name);
+        for (int p = 0; p < 4; p++) {
+            if (entry->seen[p]) {
+                fprintf(temp, ",%.6f", entry->times[p]);
+            } else {
+                fprintf(temp, ",");
+            }
+        }
+        fprintf(temp, "\n");
+        rows_written++;
+    }
+
+    fclose(temp);
+
+    if (rows_written == 0) {
+        printf("Warning: No data available for pattern subset %s\n", title);
+        remove(temp_path);
+        return;
+    }
+
+    FILE *gp = popen("gnuplot", "w");
+    if (gp == NULL) {
+        printf("Error: Could not open gnuplot\n");
+        remove(temp_path);
+        return;
+    }
+
+    fprintf(gp, "set terminal png size 1800,1200 font 'Arial,11'\n");
+    fprintf(gp, "set output 'results/%s'\n", output_file);
+    fprintf(gp, "set title '%s' font 'Arial,16'\n", title);
+    fprintf(gp, "set xlabel 'Algorithm' font 'Arial,13'\n");
+    fprintf(gp, "set ylabel 'Execution Time (seconds)' font 'Arial,13'\n");
+    fprintf(gp, "set style data histogram\n");
+    fprintf(gp, "set style histogram clustered gap 1\n");
+    fprintf(gp, "set style fill solid border -1\n");
+    fprintf(gp, "set boxwidth 0.9\n");
+    fprintf(gp, "set xtics rotate by -45 font 'Arial,10'\n");
+    fprintf(gp, "set grid ytics\n");
+    fprintf(gp, "set key outside right top\n");
+    fprintf(gp, "set datafile separator ','\n");
+
+    fprintf(gp, "plot '%s' using 2:xtic(1) title 'Random', \\\n", temp_path);
+    fprintf(gp, "     '' using 3:xtic(1) title 'Sorted', \\\n");
+    fprintf(gp, "     '' using 4:xtic(1) title 'Reverse Sorted', \\\n");
+    fprintf(gp, "     '' using 5:xtic(1) title 'Nearly Sorted'\n");
+
+    fflush(gp);
+    pclose(gp);
+
+    remove(temp_path);
+}
+
 void plot_size_comparison(const char *output_file) {
     (void)output_file;
 
@@ -222,18 +313,12 @@ void plot_size_comparison(const char *output_file) {
                basic_best_case, 2, "Sorted", false, TREND_N);
 }
 
-void plot_pattern_comparison(const char *output_file) {
+void plot_pattern_comparison(void) {
     FILE *csv = fopen("results/pattern_benchmark.csv", "r");
     if (csv == NULL) {
         printf("Error: Could not open pattern_benchmark.csv\n");
         return;
     }
-
-    typedef struct {
-        char name[MAX_NAME_LENGTH];
-        double times[4];
-        bool seen[4];
-    } PatternEntry;
 
     PatternEntry entries[32];
     int entry_count = 0;
@@ -283,64 +368,47 @@ void plot_pattern_comparison(const char *output_file) {
 
     fclose(csv);
 
-    const char *temp_path = "results/.temp_pattern_histogram.dat";
-    FILE *temp = fopen(temp_path, "w");
-    if (temp == NULL) {
-        printf("Error: Could not create %s\n", temp_path);
-        return;
-    }
-
-    fprintf(temp, "Algorithm,Random,Sorted,ReverseSorted,NearlySorted\n");
-    for (int i = 0; i < entry_count; i++) {
-        fprintf(temp, "%s", entries[i].name);
-        for (int p = 0; p < 4; p++) {
-            if (entries[i].seen[p]) {
-                fprintf(temp, ",%.6f", entries[i].times[p]);
-            } else {
-                fprintf(temp, ",");
-            }
-        }
-        fprintf(temp, "\n");
-    }
-
-    fclose(temp);
-
     if (entry_count == 0) {
         printf("Warning: pattern_benchmark.csv has no data to plot\n");
-        remove(temp_path);
         return;
     }
 
-    FILE *gp = popen("gnuplot", "w");
-    if (gp == NULL) {
-        printf("Error: Could not open gnuplot\n");
-        remove(temp_path);
-        return;
-    }
+    const char *special_algorithms[] = {
+        "CountingSort",
+        "RadixSort",
+        "BucketSort"
+    };
 
-    fprintf(gp, "set terminal png size 1800,1200 font 'Arial,11'\n");
-    fprintf(gp, "set output 'results/%s'\n", output_file);
-    fprintf(gp, "set title 'Algorithm Performance by Data Pattern' font 'Arial,16'\n");
-    fprintf(gp, "set xlabel 'Algorithm' font 'Arial,13'\n");
-    fprintf(gp, "set ylabel 'Execution Time (seconds)' font 'Arial,13'\n");
-    fprintf(gp, "set style data histogram\n");
-    fprintf(gp, "set style histogram clustered gap 1\n");
-    fprintf(gp, "set style fill solid border -1\n");
-    fprintf(gp, "set boxwidth 0.9\n");
-    fprintf(gp, "set xtics rotate by -45 font 'Arial,10'\n");
-    fprintf(gp, "set grid ytics\n");
-    fprintf(gp, "set key outside right top\n");
-    fprintf(gp, "set datafile separator ','\n");
+    const char *quadratic_algorithms[] = {
+        "SelectionSort",
+        "BubbleSort",
+        "InsertionSort"
+    };
 
-    fprintf(gp, "plot '%s' using 2:xtic(1) title 'Random', \\\n", temp_path);
-    fprintf(gp, "     '' using 3:xtic(1) title 'Sorted', \\\n");
-    fprintf(gp, "     '' using 4:xtic(1) title 'Reverse Sorted', \\\n");
-    fprintf(gp, "     '' using 5:xtic(1) title 'Nearly Sorted'\n");
+    const char *efficient_algorithms[] = {
+        "MergeSort",
+        "QuickSort",
+        "HeapSort",
+        "ShellSort"
+    };
 
-    fflush(gp);
-    pclose(gp);
+    plot_pattern_subset("pattern_comparison_quadratic.png",
+                        "Quadratic Algorithms by Data Pattern",
+                        entries, entry_count,
+                        quadratic_algorithms,
+                        ARRAY_SIZE(quadratic_algorithms));
 
-    remove(temp_path);
+    plot_pattern_subset("pattern_comparison_efficient.png",
+                        "O(n log n) Algorithms by Data Pattern",
+                        entries, entry_count,
+                        efficient_algorithms,
+                        ARRAY_SIZE(efficient_algorithms));
+
+    plot_pattern_subset("pattern_comparison_special.png",
+                        "Non-Comparison Algorithms by Data Pattern",
+                        entries, entry_count,
+                        special_algorithms,
+                        ARRAY_SIZE(special_algorithms));
 }
 
 void generate_all_plots() {
@@ -351,8 +419,8 @@ void generate_all_plots() {
     printf("  Creating special algorithms graph...\n");
     plot_size_comparison(NULL);
 
-    printf("  Creating pattern comparison graph...\n");
-    plot_pattern_comparison("pattern_comparison.png");
+    printf("  Creating pattern comparison graphs (quadratic / n log n / special)...\n");
+    plot_pattern_comparison();
 
     printf("Graph generation completed!\n");
     printf("Check results/ folder for PNG files:\n");
@@ -360,5 +428,7 @@ void generate_all_plots() {
     printf("  - 1_basic_sorts_best_linear.png (Bubble, Insertion sorted input)\n");
     printf("  - 2_efficient_sorts_log.png / 2_efficient_sorts_linear.png\n");
     printf("  - 3_special_sorts_log.png / 3_special_sorts_linear.png\n");
-    printf("  - pattern_comparison.png (All algorithms by pattern)\n");
+    printf("  - pattern_comparison_quadratic.png (Selection, Bubble, Insertion)\n");
+    printf("  - pattern_comparison_efficient.png (Merge, Quick, Heap, Shell)\n");
+    printf("  - pattern_comparison_special.png (Counting, Radix, Bucket)\n");
 }

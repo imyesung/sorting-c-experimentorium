@@ -70,7 +70,9 @@ make cleanall        # remove obj/bin/results
 - `1_basic_sorts_best_linear.png` (sorted-input best case)
 - `2_efficient_sorts_log.png`, `2_efficient_sorts_linear.png`
 - `3_special_sorts_log.png`, `3_special_sorts_linear.png`
-- `pattern_comparison.png`
+- `pattern_comparison_quadratic.png` (O(n²) algorithms)
+- `pattern_comparison_efficient.png` (O(n log n) algorithms)
+- `pattern_comparison_special.png` (non-comparison algorithms)
 
 Each size plot provides log/linear axis variants plus reference curves (O(n²), O(n log n), or O(n) depending on the group).
 

@@ -18,6 +18,8 @@ void benchmark_by_size(void (*sort_func)(int*, int), const char *name,
                        DataPattern pattern, bool is_slow_algorithm,
                        bool include_large_inputs);
 
-void benchmark_by_pattern(void (*sort_func)(int*, int), const char *name, int size);
+void benchmark_by_pattern(void (*sort_func)(int*, int), const char *name,
+                          bool is_slow_algorithm,
+                          bool include_large_inputs);
 
 #endif
