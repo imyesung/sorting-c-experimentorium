@@ -1,0 +1,57 @@
+# Build artifacts
+obj/
+bin/
+*.o
+*.a
+*.so
+*.dylib
+*.out
+
+# IDE and editor files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+
+# clangd cache and compile database
+.cache/
+compile_commands.json
+compile_flags.txt
+.clangd
+
+# Compiler and debug files
+*.dSYM/
+*.su
+*.idb
+*.pdb
+core
+vgcore.*
+
+# Dependency files
+*.d
+
+# Backup files
+*.bak
+*.tmp
+
+# macOS specific
+.AppleDouble
+.LSOverride
+Icon
+._*
+
+# Sensitive information
+*.key
+*.pem
+*.p12
+secrets.txt
+.env
+.env.local
+
+# Logs
+*.log
+
+# Compiled documentation
+docs/_build/
