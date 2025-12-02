@@ -1,11 +1,59 @@
 #include <stdbool.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 #include <time.h>
 #include "../include/benchmark.h"
 #include "../include/sorts.h"
 #include "../include/data_generator.h"
 #define ARRAY_SIZE(arr) (int)(sizeof(arr) / sizeof((arr)[0]))
+
+/* ========== Sort Result Verification Functions ========== */
+
+// Check if array is sorted in ascending order
+static bool is_sorted(const int *arr, int n) {
+    for (int i = 1; i < n; i++) {
+        if (arr[i - 1] > arr[i]) {
+            return false;
+        }
+    }
+    return true;
+}
+
+// Comparison function for qsort
+static int compare_int(const void *a, const void *b) {
+    return (*(const int*)a - *(const int*)b);
+}
+
+// Verify that sort result matches the expected output (using qsort as reference)
+static bool verify_sort_result(const int *result, const int *original, int n, const char *algo_name) {
+    // Copy original and sort with qsort to create reference
+    int *expected = (int*)malloc(n * sizeof(int));
+    if (expected == NULL) {
+        printf("[WARN] Memory allocation failed for verification\n");
+        return true; // Skip verification on memory failure
+    }
+    memcpy(expected, original, n * sizeof(int));
+    qsort(expected, n, sizeof(int), compare_int);
+
+    // Compare results
+    bool match = (memcmp(result, expected, n * sizeof(int)) == 0);
+    
+    if (!match) {
+        printf("\n[ERROR] %s produced incorrect result!\n", algo_name);
+        // Find first mismatch position
+        for (int i = 0; i < n; i++) {
+            if (result[i] != expected[i]) {
+                printf("  First mismatch at index %d: got %d, expected %d\n", 
+                       i, result[i], expected[i]);
+                break;
+            }
+        }
+    }
+
+    free(expected);
+    return match;
+}
 
 /* Practical default sizes for O(n log n) algorithms (<= 1,000,000) */
 static const int DEFAULT_SIZES[] = {
@@ -37,8 +85,10 @@ static const int QUADRATIC_SIZES[] = {
     50000
 };
 
-#define PATTERN_TEST_SIZE_SMALL 100000
-#define PATTERN_TEST_SIZE_LARGE 1000000
+/* Pattern test sizes optimized for each complexity class */
+#define PATTERN_SIZE_QUADRATIC     50000      // O(n^2)
+#define PATTERN_SIZE_LINEARITHMIC  5000000    // O(n log n)
+#define PATTERN_SIZE_LINEAR        50000000   // O(n)
 
 static void counting_sort_wrapper(int *arr, int n) {
     if (arr == NULL || n <= 0) {
@@ -70,7 +120,7 @@ static const char *pattern_names[] = {
 };
 
 void benchmark_by_size(void (*sort_func)(int*, int), const char *name,
-                       DataPattern pattern, bool is_slow_algorithm,
+                       DataPattern pattern, AlgorithmComplexity complexity,
                        bool include_large_inputs) {
     FILE *fp = fopen("results/size_benchmark.csv", "a");
     if (fp == NULL) {
@@ -78,11 +128,11 @@ void benchmark_by_size(void (*sort_func)(int*, int), const char *name,
         return;
     }
 
-    const int *primary_sizes = is_slow_algorithm ? QUADRATIC_SIZES : DEFAULT_SIZES;
-    int primary_count = is_slow_algorithm ? ARRAY_SIZE(QUADRATIC_SIZES)
-                                          : ARRAY_SIZE(DEFAULT_SIZES);
+    const int *primary_sizes = (complexity == COMPLEXITY_QUADRATIC) ? QUADRATIC_SIZES : DEFAULT_SIZES;
+    int primary_count = (complexity == COMPLEXITY_QUADRATIC) ? ARRAY_SIZE(QUADRATIC_SIZES)
+                                                             : ARRAY_SIZE(DEFAULT_SIZES);
 
-    const int *extra_sizes = include_large_inputs && !is_slow_algorithm
+    const int *extra_sizes = (include_large_inputs && complexity != COMPLEXITY_QUADRATIC)
                                  ? EXTENDED_SIZES
                                  : NULL;
     int extra_count = extra_sizes ? ARRAY_SIZE(EXTENDED_SIZES) : 0;
@@ -97,31 +147,64 @@ void benchmark_by_size(void (*sort_func)(int*, int), const char *name,
 
         for (int i = 0; i < series_count; i++) {
             int n = sizes[i];
-        int *arr = (int*)malloc(n * sizeof(int));
+            int *arr = (int*)malloc(n * sizeof(int));
+            int *original = (int*)malloc(n * sizeof(int));
 
-        if (arr == NULL) {
-            printf("Memory allocation failed for size %d\n", n);
-            continue;
-        }
+            if (arr == NULL || original == NULL) {
+                printf("Memory allocation failed for size %d\n", n);
+                free(arr);
+                free(original);
+                continue;
+            }
 
-        generate_data(arr, n, pattern);
+            generate_data(arr, n, pattern);
+            memcpy(original, arr, n * sizeof(int));  // Keep original for verification
 
-            printf("  Testing %s with %d elements (%s)...\n",
-                   name, n, pattern_names[pattern]);
+            printf("  Testing %s with %d elements (%s)...", name, n, pattern_names[pattern]);
+            fflush(stdout);
 
             double time = benchmark_sort(sort_func, arr, n);
+
+            // Verify sort correctness
+            if (!is_sorted(arr, n)) {
+                printf(" [FAIL - NOT SORTED]\n");
+            } else if (!verify_sort_result(arr, original, n, name)) {
+                printf(" [FAIL - WRONG RESULT]\n");
+            } else {
+                printf(" OK (%.4fs)\n", time);
+            }
 
             fprintf(fp, "%s,%s,%d,%.6f\n", name, pattern_names[pattern], n, time);
 
             free(arr);
+            free(original);
         }
     }
 
     fclose(fp);
 }
 
+// Get optimized pattern test size based on algorithm complexity
+static int get_pattern_test_size(AlgorithmComplexity complexity, bool include_large_inputs) {
+    if (!include_large_inputs) {
+        // Conservative sizes when large inputs disabled
+        switch (complexity) {
+            case COMPLEXITY_QUADRATIC:    return 10000;
+            case COMPLEXITY_LINEARITHMIC: return 100000;
+            case COMPLEXITY_LINEAR:       return 1000000;
+        }
+    }
+    // Full sizes for comprehensive benchmarking
+    switch (complexity) {
+        case COMPLEXITY_QUADRATIC:    return PATTERN_SIZE_QUADRATIC;
+        case COMPLEXITY_LINEARITHMIC: return PATTERN_SIZE_LINEARITHMIC;
+        case COMPLEXITY_LINEAR:       return PATTERN_SIZE_LINEAR;
+    }
+    return 100000; // fallback
+}
+
 void benchmark_by_pattern(void (*sort_func)(int*, int), const char *name,
-                          bool is_slow_algorithm,
+                          AlgorithmComplexity complexity,
                           bool include_large_inputs) {
     FILE *fp = fopen("results/pattern_benchmark.csv", "a");
     if (fp == NULL) {
@@ -131,32 +214,42 @@ void benchmark_by_pattern(void (*sort_func)(int*, int), const char *name,
 
     DataPattern patterns[] = {RANDOM, SORTED, REVERSE_SORTED, NEARLY_SORTED};
 
-    int size;
-    if (is_slow_algorithm) {
-        size = PATTERN_TEST_SIZE_SMALL;
-    } else {
-        size = include_large_inputs ? PATTERN_TEST_SIZE_LARGE
-                                    : PATTERN_TEST_SIZE_SMALL;
-    }
+    int size = get_pattern_test_size(complexity, include_large_inputs);
 
     printf("Testing %s with different patterns (size=%d):\n", name, size);
 
     for (int i = 0; i < 4; i++) {
         int *arr = (int*)malloc(size * sizeof(int));
+        int *original = (int*)malloc(size * sizeof(int));
 
-        if (arr == NULL) {
+        if (arr == NULL || original == NULL) {
             printf("Memory allocation failed\n");
+            free(arr);
+            free(original);
             continue;
         }
 
         generate_data(arr, size, patterns[i]);
+        memcpy(original, arr, size * sizeof(int));  // Keep original for verification
 
-        printf("  Pattern: %s...\n", pattern_names[i]);
+        printf("  Pattern: %s...", pattern_names[i]);
+        fflush(stdout);
 
-    double time = benchmark_sort(sort_func, arr, size);
-    fprintf(fp, "%s,%s,%d,%.6f\n", name, pattern_names[i], size, time);
+        double time = benchmark_sort(sort_func, arr, size);
+
+        // Verify sort correctness
+        if (!is_sorted(arr, size)) {
+            printf(" [FAIL - NOT SORTED]\n");
+        } else if (!verify_sort_result(arr, original, size, name)) {
+            printf(" [FAIL - WRONG RESULT]\n");
+        } else {
+            printf(" OK (%.4fs)\n", time);
+        }
+
+        fprintf(fp, "%s,%s,%d,%.6f\n", name, pattern_names[i], size, time);
 
         free(arr);
+        free(original);
     }
 
     fclose(fp);
@@ -199,20 +292,20 @@ void run_all_benchmarks(bool include_large_inputs) {
         QUADRATIC_SIZES[ARRAY_SIZE(QUADRATIC_SIZES) - 1]);
 
     printf("[1/10] Selection Sort\n");
-    benchmark_by_size(selection_sort, "SelectionSort", RANDOM, true, include_large_inputs);
-    benchmark_by_pattern(selection_sort, "SelectionSort", true, include_large_inputs);
+    benchmark_by_size(selection_sort, "SelectionSort", RANDOM, COMPLEXITY_QUADRATIC, include_large_inputs);
+    benchmark_by_pattern(selection_sort, "SelectionSort", COMPLEXITY_QUADRATIC, include_large_inputs);
 
     printf("\n[2/10] Bubble Sort\n");
-    benchmark_by_size(bubble_sort, "BubbleSort", RANDOM, true, include_large_inputs);
+    benchmark_by_size(bubble_sort, "BubbleSort", RANDOM, COMPLEXITY_QUADRATIC, include_large_inputs);
     printf("  -> Best-case (sorted input) sweep\n");
-    benchmark_by_size(bubble_sort, "BubbleSort", SORTED, true, include_large_inputs);
-    benchmark_by_pattern(bubble_sort, "BubbleSort", true, include_large_inputs);
+    benchmark_by_size(bubble_sort, "BubbleSort", SORTED, COMPLEXITY_QUADRATIC, include_large_inputs);
+    benchmark_by_pattern(bubble_sort, "BubbleSort", COMPLEXITY_QUADRATIC, include_large_inputs);
 
     printf("\n[3/10] Insertion Sort\n");
-    benchmark_by_size(insertion_sort, "InsertionSort", RANDOM, true, include_large_inputs);
+    benchmark_by_size(insertion_sort, "InsertionSort", RANDOM, COMPLEXITY_QUADRATIC, include_large_inputs);
     printf("  -> Best-case (sorted input) sweep\n");
-    benchmark_by_size(insertion_sort, "InsertionSort", SORTED, true, include_large_inputs);
-    benchmark_by_pattern(insertion_sort, "InsertionSort", true, include_large_inputs);
+    benchmark_by_size(insertion_sort, "InsertionSort", SORTED, COMPLEXITY_QUADRATIC, include_large_inputs);
+    benchmark_by_pattern(insertion_sort, "InsertionSort", COMPLEXITY_QUADRATIC, include_large_inputs);
 
     // O(n log n) algorithms - test with all sizes
     printf("\n=== Testing O(n log n) Algorithms ===\n");
@@ -221,35 +314,35 @@ void run_all_benchmarks(bool include_large_inputs) {
         EXTENDED_SIZES[ARRAY_SIZE(EXTENDED_SIZES) - 1]);
 
     printf("[4/10] Merge Sort\n");
-    benchmark_by_size(merge_sort, "MergeSort", RANDOM, false, include_large_inputs);
-    benchmark_by_pattern(merge_sort, "MergeSort", false, include_large_inputs);
+    benchmark_by_size(merge_sort, "MergeSort", RANDOM, COMPLEXITY_LINEARITHMIC, include_large_inputs);
+    benchmark_by_pattern(merge_sort, "MergeSort", COMPLEXITY_LINEARITHMIC, include_large_inputs);
 
     printf("\n[5/10] Quick Sort\n");
-    benchmark_by_size(quick_sort, "QuickSort", RANDOM, false, include_large_inputs);
-    benchmark_by_pattern(quick_sort, "QuickSort", false, include_large_inputs);
+    benchmark_by_size(quick_sort, "QuickSort", RANDOM, COMPLEXITY_LINEARITHMIC, include_large_inputs);
+    benchmark_by_pattern(quick_sort, "QuickSort", COMPLEXITY_LINEARITHMIC, include_large_inputs);
 
     printf("\n[6/10] Heap Sort\n");
-    benchmark_by_size(heap_sort, "HeapSort", RANDOM, false, include_large_inputs);
-    benchmark_by_pattern(heap_sort, "HeapSort", false, include_large_inputs);
+    benchmark_by_size(heap_sort, "HeapSort", RANDOM, COMPLEXITY_LINEARITHMIC, include_large_inputs);
+    benchmark_by_pattern(heap_sort, "HeapSort", COMPLEXITY_LINEARITHMIC, include_large_inputs);
 
     // Special algorithms
     printf("\n=== Testing Special Algorithms ===\n\n");
 
     printf("[7/10] Shell Sort\n");
-    benchmark_by_size(shell_sort, "ShellSort", RANDOM, false, include_large_inputs);
-    benchmark_by_pattern(shell_sort, "ShellSort", false, include_large_inputs);
+    benchmark_by_size(shell_sort, "ShellSort", RANDOM, COMPLEXITY_LINEARITHMIC, include_large_inputs);
+    benchmark_by_pattern(shell_sort, "ShellSort", COMPLEXITY_LINEARITHMIC, include_large_inputs);
 
     printf("\n[8/10] Counting Sort\n");
-    benchmark_by_size(counting_sort_wrapper, "CountingSort", RANDOM, false, include_large_inputs);
-    benchmark_by_pattern(counting_sort_wrapper, "CountingSort", false, include_large_inputs);
+    benchmark_by_size(counting_sort_wrapper, "CountingSort", RANDOM, COMPLEXITY_LINEAR, include_large_inputs);
+    benchmark_by_pattern(counting_sort_wrapper, "CountingSort", COMPLEXITY_LINEAR, include_large_inputs);
 
     printf("\n[9/10] Radix Sort\n");
-    benchmark_by_size(radix_sort, "RadixSort", RANDOM, false, include_large_inputs);
-    benchmark_by_pattern(radix_sort, "RadixSort", false, include_large_inputs);
+    benchmark_by_size(radix_sort, "RadixSort", RANDOM, COMPLEXITY_LINEAR, include_large_inputs);
+    benchmark_by_pattern(radix_sort, "RadixSort", COMPLEXITY_LINEAR, include_large_inputs);
 
     printf("\n[10/10] Bucket Sort\n");
-    benchmark_by_size(bucket_sort, "BucketSort", RANDOM, false, include_large_inputs);
-    benchmark_by_pattern(bucket_sort, "BucketSort", false, include_large_inputs);
+    benchmark_by_size(bucket_sort, "BucketSort", RANDOM, COMPLEXITY_LINEAR, include_large_inputs);
+    benchmark_by_pattern(bucket_sort, "BucketSort", COMPLEXITY_LINEAR, include_large_inputs);
 
     printf("\n=== All Benchmarks Completed ===\n");
 }
