@@ -24,7 +24,7 @@ All algorithms share the same `void sort(int *arr, int n)`-style API behind `sor
   * Merge sort (`merge.c`)
   * Quick sort with random pivot (`quick.c`)
   * Heap sort (`heap.c`)
-  * Shell sort with Ciura-style gaps (`shell.c`)
+  * Shell sort with standard gap sequence ($n/2$) (`shell.c`)
 
 * Special / non-comparison-based sorts (roughly linear in range/keys)
   * Counting sort (`counting.c`)
@@ -86,7 +86,7 @@ Each complexity class uses optimized sizes for pattern comparison:
 
 **Key observations:**
 - Bubble and Insertion sort achieve near-O(n) performance on sorted input (early-exit optimization).
-- Selection sort is pattern-insensitive because it always scans the full unsorted portion.
+- Selection sort has the same comparison count ($N(N-1)/2$) regardless of pattern, but execution times vary (0.79s–1.33s) due to differences in memory access patterns, branch prediction, and swap counts (0 swaps for sorted vs N/2 for reverse-sorted).
 - Insertion sort is the fastest quadratic algorithm for random data.
 
 #### $O(n \log n)$ Algorithms (n = 5,000,000)
@@ -99,9 +99,10 @@ Each complexity class uses optimized sizes for pattern comparison:
 | Shell Sort | 1.20s | 0.11s | 0.17s | 1.02s |
 
 **Key observations:**
-- Quick sort (random pivot) is the fastest on all patterns.
+- Quick sort (random pivot) is the fastest on most patterns, but Shell sort outperforms it on fully sorted data (0.11s vs 0.21s).
 - Merge sort is the most consistent across patterns.
-- Shell sort excels on sorted/reverse-sorted but struggles with nearly-sorted data.
+- Shell sort excels on sorted/reverse-sorted data. On nearly-sorted data, it performs better than random data (1.02s vs 1.20s) but is less efficient compared to Quick sort (0.30s).
+- Shell sort uses the standard $n/2$ gap sequence, which is less optimal than advanced sequences (e.g., Ciura). This contributes to its relatively lower performance on random and nearly-sorted patterns.
 
 #### $O(n)$ Algorithms (n = 50,000,000)
 
@@ -169,12 +170,12 @@ Each complexity class uses optimized sizes for pattern comparison:
 | Algorithm | Best Input | Worst Input | Notes |
 |-----------|------------|-------------|-------|
 | Selection | Any | Any | Always scans full unsorted portion |
-| Bubble | Sorted | Random/Reverse | Early-exit on sorted input |
-| Insertion | Sorted/Nearly | Reverse | Minimal shifts on sorted input |
+| Bubble | Sorted | Random/Reverse Sorted | Early-exit on sorted input |
+| Insertion | Sorted/Nearly Sorted | Reverse Sorted | Minimal shifts on sorted input |
 | Merge | Any | Any | Deterministic work regardless of pattern |
-| Quick (random pivot) | Random | Rare (bad pivot sequence) | Random pivot avoids worst case |
+| Quick (random pivot) | Random | Rare (bad pivot sequence) / Many duplicates | Random pivot avoids worst case; without 3-way partition, many duplicates can degrade to $O(n^2)$ |
 | Heap | Any | Any | Cache-unfriendly but consistent |
-| Shell | Sorted | Nearly Sorted | Gap sequence dependent |
+| Shell | Sorted | Random | Performance highly dependent on gap sequence; standard $n/2$ sequence is suboptimal |
 | Counting | Small range | Large range | O(n + k) where k is range |
 | Radix | Any | Many digits | O(d * n) where d is digit count |
 | Bucket | Uniform dist. | Skewed dist. | Depends on key distribution |
@@ -272,7 +273,7 @@ This log-scale figure compares Merge, Quick (random pivot), Heap, and Shell sort
 * Merge sort gives a very regular curve because its work is deterministic.
 * Random-pivot quicksort tends to sit close to merge sort in the average case.
 * Heap sort's constant factor is larger due to cache-unfriendly memory access.
-* Shell sort's behavior depends on the gap sequence; with Ciura gaps, it can be competitive.
+* Shell sort uses the standard $n/2$ gap sequence, which is less efficient than advanced sequences (e.g., Ciura, Sedgewick). This results in relatively lower performance, especially on random and nearly-sorted data.
 
 #### 6.2.2 `results/2_efficient_sorts_linear.png`
 
