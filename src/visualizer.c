@@ -34,10 +34,12 @@ static void plot_group(const char *output_file, const char *title,
 
     FILE **temp_files = (FILE **)calloc(count, sizeof(FILE *));
     char (*temp_paths)[256] = calloc((size_t)count, sizeof(*temp_paths));
-    if (temp_files == NULL || temp_paths == NULL) {
+    int *data_counts = (int *)calloc(count, sizeof(int));  // Track data points per algorithm
+    if (temp_files == NULL || temp_paths == NULL || data_counts == NULL) {
         printf("Error: Could not allocate temporary buffers for plotting\n");
         free(temp_files);
         free(temp_paths);
+        free(data_counts);
         fclose(csv);
         return;
     }
@@ -86,6 +88,7 @@ static void plot_group(const char *output_file, const char *title,
         for (int i = 0; i < count; i++) {
             if (strcmp(algo, algorithms[i]) == 0) {
                 fprintf(temp_files[i], "%d,%lf\n", size, time);
+                data_counts[i]++;  // Count data points
                 if (i == 0) {
                     if (reference_size <= 0.0 || size < reference_size) {
                         reference_size = (double)size;
@@ -116,25 +119,45 @@ cleanup:
         return;
     }
 
-    fprintf(gp, "set terminal png size 1600,1000 font 'Arial,12'\n");
+    fprintf(gp, "set terminal png size 1800,1100 font 'Arial,14'\n");
     fprintf(gp, "set output 'results/%s'\n", output_file);
-    fprintf(gp, "set title '%s' font 'Arial,16'\n", title);
+    fprintf(gp, "set title '%s' font 'Arial,20' enhanced\n", title);
     if (use_logscale) {
-        fprintf(gp, "set xlabel 'Input Size (log scale)' font 'Arial,14'\n");
-        fprintf(gp, "set ylabel 'Execution Time (seconds, log scale)' font 'Arial,14'\n");
+        fprintf(gp, "set xlabel 'Input Size n (log scale)' font 'Arial,16' offset 0,-0.5\n");
+        fprintf(gp, "set ylabel 'Execution Time (seconds, log scale)' font 'Arial,16' offset -1,0\n");
         fprintf(gp, "set logscale xy\n");
         fprintf(gp, "set autoscale\n");
     } else {
-        fprintf(gp, "set xlabel 'Input Size' font 'Arial,14'\n");
-        fprintf(gp, "set ylabel 'Execution Time (seconds)' font 'Arial,14'\n");
+        fprintf(gp, "set xlabel 'Input Size n' font 'Arial,16' offset 0,-0.5\n");
+        fprintf(gp, "set ylabel 'Execution Time (seconds)' font 'Arial,16' offset -1,0\n");
         fprintf(gp, "unset logscale\n");
         fprintf(gp, "set autoscale\n");
-        fprintf(gp, "set yrange [*:*]\n");
+        fprintf(gp, "set yrange [0:*]\n");
     }
-    fprintf(gp, "set grid\n");
-    fprintf(gp, "set key outside right top\n");
+    
+    // Enhanced grid styling
+    fprintf(gp, "set grid xtics ytics mxtics mytics lc rgb '#dddddd' lw 1 lt 1\n");
+    fprintf(gp, "set grid mxtics mytics lc rgb '#eeeeee' lw 0.5 lt 1\n");
+    fprintf(gp, "set mxtics 5\n");
+    fprintf(gp, "set mytics 5\n");
+    
+    // Key/legend styling with data point counts
+    fprintf(gp, "set key outside right top box opaque font 'Arial,13' spacing 1.5\n");
+    fprintf(gp, "set key title 'Algorithms (n = data points)' font 'Arial,12'\n");
     fprintf(gp, "set datafile separator ','\n");
-    fprintf(gp, "set style line 100 lc rgb '#888888' lt 1 lw 2 dt 3\n");
+    
+    // Border styling
+    fprintf(gp, "set border 3 lw 2\n");
+    fprintf(gp, "set tics font 'Arial,12'\n");
+    fprintf(gp, "set format x '%%.0s%%c'\n");  // Format large numbers (1M, 10M, etc.)
+    
+    // Line styles for each algorithm (distinct colors and point styles)
+    fprintf(gp, "set style line 1 lc rgb '#e41a1c' lt 1 lw 3 pt 7 ps 1.5\n");  // Red, circle
+    fprintf(gp, "set style line 2 lc rgb '#377eb8' lt 1 lw 3 pt 5 ps 1.5\n");  // Blue, square
+    fprintf(gp, "set style line 3 lc rgb '#4daf4a' lt 1 lw 3 pt 9 ps 1.5\n");  // Green, triangle
+    fprintf(gp, "set style line 4 lc rgb '#984ea3' lt 1 lw 3 pt 13 ps 1.5\n"); // Purple, diamond
+    fprintf(gp, "set style line 5 lc rgb '#ff7f00' lt 1 lw 3 pt 11 ps 1.5\n"); // Orange, inverted triangle
+    fprintf(gp, "set style line 100 lc rgb '#888888' lt 1 lw 2 dt 3\n");       // Trend line (dashed gray)
 
     double trend_factor = 0.0;
     const char *trend_title = NULL;
@@ -168,10 +191,10 @@ cleanup:
 
     fprintf(gp, "plot ");
     for (int i = 0; i < count; i++) {
-        fprintf(gp, "'%s' using 1:2 with linespoints title '%s'",
-                temp_paths[i], algorithms[i]);
+        fprintf(gp, "'%s' using 1:2 with linespoints ls %d title '%s (n=%d)'",
+                temp_paths[i], i + 1, algorithms[i], data_counts[i]);
         if (i < count - 1 || trend != TREND_NONE) {
-            fprintf(gp, ", \\\n+     ");
+            fprintf(gp, ", \\\n     ");
         }
     }
 
@@ -188,6 +211,7 @@ cleanup:
 
     free(temp_files);
     free(temp_paths);
+    free(data_counts);
 }
 
 static int pattern_index(const char *pattern) {
@@ -262,24 +286,34 @@ static void plot_pattern_subset(const char *output_file, const char *title,
         return;
     }
 
-    fprintf(gp, "set terminal png size 1800,1200 font 'Arial,11'\n");
+    fprintf(gp, "set terminal png size 1800,1200 font 'Arial,14'\n");
     fprintf(gp, "set output 'results/%s'\n", output_file);
-    fprintf(gp, "set title '%s' font 'Arial,16'\n", title);
-    fprintf(gp, "set xlabel 'Algorithm' font 'Arial,13'\n");
-    fprintf(gp, "set ylabel 'Execution Time (seconds)' font 'Arial,13'\n");
+    fprintf(gp, "set title '%s' font 'Arial,20' enhanced\n", title);
+    fprintf(gp, "set xlabel 'Algorithm' font 'Arial,16' offset 0,-1\n");
+    fprintf(gp, "set ylabel 'Execution Time (seconds)' font 'Arial,16' offset -1,0\n");
     fprintf(gp, "set style data histogram\n");
-    fprintf(gp, "set style histogram clustered gap 1\n");
-    fprintf(gp, "set style fill solid border -1\n");
+    fprintf(gp, "set style histogram clustered gap 2\n");
+    fprintf(gp, "set style fill solid 0.8 border -1\n");
     fprintf(gp, "set boxwidth 0.9\n");
-    fprintf(gp, "set xtics rotate by -45 font 'Arial,10'\n");
-    fprintf(gp, "set grid ytics\n");
-    fprintf(gp, "set key outside right top\n");
+    fprintf(gp, "set xtics rotate by -30 font 'Arial,13' offset 0,-0.5\n");
+    fprintf(gp, "set ytics font 'Arial,12'\n");
+    fprintf(gp, "set grid ytics lc rgb '#dddddd' lw 1\n");
+    fprintf(gp, "set key outside right top box opaque font 'Arial,14' spacing 1.5\n");
+    fprintf(gp, "set key title 'Input Patterns' font 'Arial,13'\n");
+    fprintf(gp, "set border 3 lw 2\n");
     fprintf(gp, "set datafile separator ','\n");
+    fprintf(gp, "set yrange [0:*]\n");
+    
+    // Distinct colors for each pattern
+    fprintf(gp, "set style line 1 lc rgb '#e41a1c'\n");  // Random: Red
+    fprintf(gp, "set style line 2 lc rgb '#377eb8'\n");  // Sorted: Blue
+    fprintf(gp, "set style line 3 lc rgb '#4daf4a'\n");  // Reverse Sorted: Green
+    fprintf(gp, "set style line 4 lc rgb '#984ea3'\n");  // Nearly Sorted: Purple
 
-    fprintf(gp, "plot '%s' using 2:xtic(1) title 'Random', \\\n", temp_path);
-    fprintf(gp, "     '' using 3:xtic(1) title 'Sorted', \\\n");
-    fprintf(gp, "     '' using 4:xtic(1) title 'Reverse Sorted', \\\n");
-    fprintf(gp, "     '' using 5:xtic(1) title 'Nearly Sorted'\n");
+    fprintf(gp, "plot '%s' using 2:xtic(1) ls 1 title 'Random', \\\n", temp_path);
+    fprintf(gp, "     '' using 3:xtic(1) ls 2 title 'Sorted', \\\n");
+    fprintf(gp, "     '' using 4:xtic(1) ls 3 title 'Reverse Sorted', \\\n");
+    fprintf(gp, "     '' using 5:xtic(1) ls 4 title 'Nearly Sorted'\n");
 
     fflush(gp);
     pclose(gp);
