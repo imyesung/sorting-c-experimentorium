@@ -83,40 +83,42 @@ Time in seconds (s):
 
 | Algorithm | Random | Sorted | Reverse Sorted | Nearly Sorted |
 |-----------|--------|--------|----------------|---------------|
-| Selection Sort | `2.47` | `1.74` | `2.25` | `1.79` |
-| Bubble Sort | `6.63` | `0.00003` | `1.49` | `2.30` |
-| Insertion Sort | `0.88` | `0.00004` | `1.69` | `0.11` |
+| Selection Sort | `2.38` | `1.70` | `2.13` | `1.69` |
+| Bubble Sort | `6.69` | `0.00003` | `1.46` | `2.34` |
+| Insertion Sort | `0.84` | `0.00004` | `1.66` | `0.10` |
 
 **Key observations:**
 - Bubble and Insertion sort achieve near-O(n) performance on sorted input (early-exit optimization).
-- Selection sort has the same comparison count ($N(N-1)/2$) regardless of pattern, but execution times vary (`1.74`–`2.47`) due to differences in memory access patterns, branch prediction, and swap counts (0 swaps for sorted vs N/2 for reverse-sorted).
+- Selection sort has the same comparison count ($N(N-1)/2$) regardless of pattern, but execution times vary (`1.69`–`2.38`) due to differences in memory access patterns, branch prediction, and swap counts (0 swaps for sorted vs N/2 for reverse-sorted).
 - Insertion sort is the fastest quadratic algorithm for random data.
 
 #### $O(n \log n)$ Algorithms (n = 5,000,000)
 
 | Algorithm | Random | Sorted | Reverse Sorted | Nearly Sorted |
 |-----------|--------|--------|----------------|---------------|
-| Merge Sort | `0.53` | `0.36` | `0.36` | `0.46` |
-| Quick Sort | `0.33` | `0.12` | `0.13` | `0.18` |
-| Heap Sort | `0.52` | `0.35` | `0.36` | `0.44` |
-| Shell Sort | `0.69` | `0.06` | `0.10` | `0.58` |
+| Merge Sort | `0.50` | `0.36` | `0.36` | `0.45` |
+| Quick Sort | `0.33` | `0.12` | `0.13` | `0.17` |
+| Heap Sort | `0.50` | `0.35` | `0.34` | `0.39` |
+| Shell Sort | `0.68` | `0.06` | `0.10` | `0.57` |
 
 **Key observations:**
 - Quick sort (random pivot) is the fastest on most patterns, but Shell sort outperforms it on fully sorted data (`0.06` vs `0.12`).
 - Merge sort is the most consistent across patterns.
-- Shell sort excels on sorted/reverse-sorted data. On nearly-sorted data, it performs better than random data (`0.58` vs `0.69`) but is less efficient compared to Quick sort (`0.18`).
+- Shell sort excels on sorted/reverse-sorted data. On nearly-sorted data, it performs better than random data (`0.57` vs `0.68`) but is less efficient compared to Quick sort (`0.17`).
 - Shell sort uses the standard $n/2$ gap sequence, which is less optimal than advanced sequences (e.g., Ciura). This contributes to its relatively lower performance on random and nearly-sorted patterns.
 
 #### $O(n)$ Algorithms (n = 50,000,000)
 
 | Algorithm | Random | Sorted | Reverse Sorted | Nearly Sorted |
 |-----------|--------|--------|----------------|---------------|
-| Counting Sort | `0.31` | `0.09` | `0.07` | `0.28` |
-| Radix Sort | `0.50` | `0.71` | `0.65` | `0.67` |
+| Counting Sort | `0.30` | `0.09` | `0.07` | `0.28` |
+| Radix Sort | `0.50` | `0.63` | `0.62` | `0.63` |
+| Bucket Sort | `1.93` | `0.29` | `0.85` | `1.89` |
 
 **Key observations:**
 - Counting sort is the fastest when the value range is bounded.
 - Radix sort is relatively pattern-insensitive but shows slightly slower performance on sorted/reverse-sorted data due to memory access patterns.
+- Bucket sort shows significant pattern sensitivity: sorted data is ~6.6x faster than random due to more balanced bucket distribution.
 
 ### 3.2 Size Benchmark Results (Random Pattern)
 
@@ -126,12 +128,12 @@ Time in seconds (s):
 
 | Size | Selection Sort | Bubble Sort | Insertion Sort |
 |------|----------------|-------------|----------------|
-| 100 | `0.000016` | `0.000009` | `0.000002` |
-| 1,000 | `0.001704` | `0.000323` | `0.000121` |
-| 5,000 | `0.051362` | `0.006096` | `0.002093` |
-| 10,000 | `0.052629` | `0.024535` | `0.008940` |
-| 20,000 | `0.186399` | `0.096269` | `0.033596` |
-| 100,000 | `2.452065` | `6.591625` | `0.849394` |
+| 100 | `0.000016` | `0.000008` | `0.000003` |
+| 1,000 | `0.001436` | `0.000327` | `0.000109` |
+| 5,000 | `0.024949` | `0.006248` | `0.002098` |
+| 10,000 | `0.056520` | `0.025638` | `0.008738` |
+| 20,000 | `0.170039` | `0.099150` | `0.032896` |
+| 100,000 | `2.377631` | `6.578173` | `0.830533` |
 
 #### $O(n^2)$ Best Case (Sorted Input)
 
@@ -139,34 +141,46 @@ Time in seconds (s):
 |------|-------------|----------------|
 | 100 | `0.000000` | `0.000000` |
 | 1,000 | `0.000000` | `0.000001` |
-| 5,000 | `0.000001` | `0.000003` |
-| 10,000 | `0.000004` | `0.000006` |
-| 20,000 | `0.000009` | `0.000017` |
-| 100,000 | `0.000037` | `0.000056` |
+| 5,000 | `0.000002` | `0.000003` |
+| 10,000 | `0.000004` | `0.000005` |
+| 20,000 | `0.000006` | `0.000011` |
+| 100,000 | `0.000037` | `0.000053` |
 
 #### $O(n\log n)$ Algorithms
 
 | Size | Merge Sort | Quick Sort | Heap Sort | Shell Sort |
 |------|------------|------------|-----------|------------|
-| 100 | `0.000012` | `0.000004` | `0.000003` | `0.000017` |
-| 1,000 | `0.000104` | `0.000051` | `0.000033` | `0.000074` |
-| 10,000 | `0.000832` | `0.000438` | `0.000416` | `0.000711` |
-| 100,000 | `0.009211` | `0.005350` | `0.005989` | `0.010483` |
-| 1,000,000 | `0.096160` | `0.060919` | `0.078841` | `0.124613` |
-| 10,000,000 | `1.024658` | `0.675500` | `1.258083` | `1.469666` |
-| 100,000,000 | `11.087366` | `8.629399` | `39.067889` | `19.842090` |
+| 100 | `0.000015` | `0.000005` | `0.000004` | `0.000004` |
+| 1,000 | `0.000119` | `0.000049` | `0.000044` | `0.000059` |
+| 5,000 | `0.000460` | `0.000228` | `0.000196` | `0.000311` |
+| 10,000 | `0.000834` | `0.000447` | `0.000419` | `0.000699` |
+| 50,000 | `0.004495` | `0.002404` | `0.002512` | `0.004087` |
+| 100,000 | `0.009064` | `0.005406` | `0.005710` | `0.008653` |
+| 500,000 | `0.046434` | `0.029407` | `0.035372` | `0.052414` |
+| 1,000,000 | `0.093346` | `0.059900` | `0.077448` | `0.113612` |
+| 2,000,000 | `0.189798` | `0.121819` | `0.171032` | `0.248315` |
+| 5,000,000 | `0.498220` | `0.318080` | `0.484706` | `0.663862` |
+| 10,000,000 | `1.013984` | `0.666794` | `1.241786` | `1.488929` |
+| 50,000,000 | `5.239889` | `3.764441` | `14.324264` | `8.787021` |
+| 100,000,000 | `10.673617` | `8.469764` | `38.775906` | `19.490871` |
 
 #### $O(n)$ Algorithms
 
-| Size | Counting Sort | Radix Sort |
-|------|---------------|------------|
-| 100 | `0.000599` | `0.000003` |
-| 1,000 | `0.000557` | `0.000018` |
-| 10,000 | `0.000386` | `0.000115` |
-| 100,000 | `0.000699` | `0.001030` |
-| 1,000,000 | `0.003587` | `0.010058` |
-| 10,000,000 | `0.053088` | `0.100978` |
-| 100,000,000 | `0.591969` | `1.057056` |
+| Size | Counting Sort | Radix Sort | Bucket Sort |
+|------|---------------|------------|-------------|
+| 100 | `0.000573` | `0.000003` | `0.000009` |
+| 1,000 | `0.000569` | `0.000014` | `0.000059` |
+| 5,000 | `0.000576` | `0.000066` | `0.000109` |
+| 10,000 | `0.000390` | `0.000114` | `0.000246` |
+| 50,000 | `0.000499` | `0.000507` | `0.001478` |
+| 100,000 | `0.000618` | `0.001062` | `0.003799` |
+| 500,000 | `0.002022` | `0.005684` | `0.020151` |
+| 1,000,000 | `0.004041` | `0.010099` | `0.042704` |
+| 2,000,000 | `0.006698` | `0.019480` | `0.088547` |
+| 5,000,000 | `0.019949` | `0.049409` | `0.216429` |
+| 10,000,000 | `0.051101` | `0.099486` | `0.428693` |
+| 50,000,000 | `0.288844` | `0.498158` | `1.928340` |
+| 100,000,000 | `0.587506` | `1.018998` | `3.797613` |
 
 ### 3.3 Operation Count Analysis (Bubble Sort)
 
@@ -191,6 +205,7 @@ Time in seconds (s):
 | 1,000 | `498,275` | `245,886` | `0.000955` |
 | 5,000 | `12,495,609` | `6,205,093` | `0.020` |
 | 10,000 | `49,967,034` | `25,063,713` | `0.041` |
+| 20,000 | `199,943,029` | `100,215,146` | `0.119` |
 | 50,000 | `1,249,970,149` | `626,215,467` | `1.69` |
 
 **Key observations:**
