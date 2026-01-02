@@ -61,61 +61,60 @@ Each complexity class uses optimized sizes for pattern comparison:
 
 | Complexity Class | Pattern Test Size | Rationale |
 |------------------|-------------------|-----------|
-| $O(n^2)$ | 50,000 | Larger sizes take too long |
+| $O(n^2)$ | 100,000 | Larger sizes take too long |
 | $O(n \log n)$ | 5,000,000 | Balances runtime and visibility |
 | $O(n)$ | 50,000,000 | Linear algorithms can handle large inputs |
 
 ### 2.5 Timing & Environment
 
-* Timing uses C's `clock()` (single-threaded CPU time).
+* Timing uses `clock_gettime(CLOCK_MONOTONIC)` for nanosecond-precision wall-clock measurement.
 * Each (algorithm, pattern, size) triple is run once.
 * Large sizes (tens of millions) allocate hundreds of MB; ensure your machine has enough RAM.
 * All results are verified for correctness using `qsort` as reference.
+* Swap and comparison counts are tracked for detailed algorithmic analysis.
 
 ## 3. Benchmark Results
 
 ### 3.1 Key Findings Summary
 
-#### $O(n^2)$ Algorithms (n = 50,000)
+#### $O(n^2)$ Algorithms (n = 100,000)
 
 | Algorithm | Random | Sorted | Reverse Sorted | Nearly Sorted |
 |-----------|--------|--------|----------------|---------------|
-| Selection Sort | 1.33s | 0.79s | 1.18s | 0.79s |
-| Bubble Sort | 2.86s | 0.00003s | 0.64s | 1.02s |
-| Insertion Sort | 0.38s | 0.00004s | 0.77s | 0.05s |
+| Selection Sort | 2.47s | 1.74s | 2.25s | 1.79s |
+| Bubble Sort | 6.63s | 0.00003s | 1.49s | 2.30s |
+| Insertion Sort | 0.88s | 0.00004s | 1.69s | 0.11s |
 
 **Key observations:**
 - Bubble and Insertion sort achieve near-O(n) performance on sorted input (early-exit optimization).
-- Selection sort has the same comparison count ($N(N-1)/2$) regardless of pattern, but execution times vary (0.79s–1.33s) due to differences in memory access patterns, branch prediction, and swap counts (0 swaps for sorted vs N/2 for reverse-sorted).
+- Selection sort has the same comparison count ($N(N-1)/2$) regardless of pattern, but execution times vary (1.74s–2.47s) due to differences in memory access patterns, branch prediction, and swap counts (0 swaps for sorted vs N/2 for reverse-sorted).
 - Insertion sort is the fastest quadratic algorithm for random data.
 
 #### $O(n \log n)$ Algorithms (n = 5,000,000)
 
 | Algorithm | Random | Sorted | Reverse Sorted | Nearly Sorted |
 |-----------|--------|--------|----------------|---------------|
-| Merge Sort | 0.88s | 0.62s | 0.62s | 0.80s |
-| Quick Sort | 0.56s | 0.21s | 0.24s | 0.30s |
-| Heap Sort | 0.87s | 0.62s | 0.62s | 0.69s |
-| Shell Sort | 1.20s | 0.11s | 0.17s | 1.02s |
+| Merge Sort | 0.53s | 0.36s | 0.36s | 0.46s |
+| Quick Sort | 0.33s | 0.12s | 0.13s | 0.18s |
+| Heap Sort | 0.52s | 0.35s | 0.36s | 0.44s |
+| Shell Sort | 0.69s | 0.06s | 0.10s | 0.58s |
 
 **Key observations:**
-- Quick sort (random pivot) is the fastest on most patterns, but Shell sort outperforms it on fully sorted data (0.11s vs 0.21s).
+- Quick sort (random pivot) is the fastest on most patterns, but Shell sort outperforms it on fully sorted data (0.06s vs 0.12s).
 - Merge sort is the most consistent across patterns.
-- Shell sort excels on sorted/reverse-sorted data. On nearly-sorted data, it performs better than random data (1.02s vs 1.20s) but is less efficient compared to Quick sort (0.30s).
+- Shell sort excels on sorted/reverse-sorted data. On nearly-sorted data, it performs better than random data (0.58s vs 0.69s) but is less efficient compared to Quick sort (0.18s).
 - Shell sort uses the standard $n/2$ gap sequence, which is less optimal than advanced sequences (e.g., Ciura). This contributes to its relatively lower performance on random and nearly-sorted patterns.
 
 #### $O(n)$ Algorithms (n = 50,000,000)
 
 | Algorithm | Random | Sorted | Reverse Sorted | Nearly Sorted |
 |-----------|--------|--------|----------------|---------------|
-| Counting Sort | 0.39s | 0.16s | 0.12s | 0.38s |
-| Radix Sort | 0.84s | 1.05s | 1.06s | 1.07s |
-| Bucket Sort | 3.41s | 0.51s | 1.53s | 3.34s |
+| Counting Sort | 0.31s | 0.09s | 0.07s | 0.28s |
+| Radix Sort | 0.50s | 0.71s | 0.65s | 0.67s |
 
 **Key observations:**
 - Counting sort is the fastest when the value range is bounded.
-- Radix sort is pattern-insensitive (consistent across all patterns).
-- Bucket sort performance depends heavily on key distribution.
+- Radix sort is relatively pattern-insensitive but shows slightly slower performance on sorted/reverse-sorted data due to memory access patterns.
 
 ### 3.2 Size Benchmark Results (Random Pattern)
 
@@ -123,49 +122,78 @@ Each complexity class uses optimized sizes for pattern comparison:
 
 | Size | Selection Sort | Bubble Sort | Insertion Sort |
 |------|----------------|-------------|----------------|
-| 100 | 0.000016s | 0.000014s | 0.000005s |
-| 1,000 | 0.001432s | 0.000554s | 0.000171s |
-| 5,000 | 0.027853s | 0.011530s | 0.003712s |
-| 10,000 | 0.093561s | 0.044820s | 0.014697s |
-| 20,000 | 0.288856s | 0.197010s | 0.058343s |
-| 50,000 | 1.329131s | 2.862591s | 0.379543s |
+| 100 | 0.000016s | 0.000009s | 0.000002s |
+| 1,000 | 0.001704s | 0.000323s | 0.000121s |
+| 5,000 | 0.051362s | 0.006096s | 0.002093s |
+| 10,000 | 0.052629s | 0.024535s | 0.008940s |
+| 20,000 | 0.186399s | 0.096269s | 0.033596s |
+| 100,000 | 2.452065s | 6.591625s | 0.849394s |
 
 #### $O(n^2)$ Best Case (Sorted Input)
 
 | Size | Bubble Sort | Insertion Sort |
 |------|-------------|----------------|
-| 100 | 0.000001s | 0.000001s |
+| 100 | 0.000000s | 0.000000s |
 | 1,000 | 0.000000s | 0.000001s |
-| 5,000 | 0.000003s | 0.000004s |
-| 10,000 | 0.000006s | 0.000007s |
-| 20,000 | 0.000011s | 0.000015s |
-| 50,000 | 0.000027s | 0.000036s |
+| 5,000 | 0.000001s | 0.000003s |
+| 10,000 | 0.000004s | 0.000006s |
+| 20,000 | 0.000009s | 0.000017s |
+| 100,000 | 0.000037s | 0.000056s |
 
 #### $O(n\log n)$ Algorithms
 
 | Size | Merge Sort | Quick Sort | Heap Sort | Shell Sort |
 |------|------------|------------|-----------|------------|
-| 100 | 0.000020s | 0.000007s | 0.000007s | 0.000008s |
-| 1,000 | 0.000180s | 0.000077s | 0.000055s | 0.000081s |
-| 10,000 | 0.001439s | 0.000754s | 0.000716s | 0.001135s |
-| 100,000 | 0.015560s | 0.009180s | 0.009909s | 0.015033s |
-| 1,000,000 | 0.166311s | 0.104097s | 0.137347s | 0.198515s |
-| 10,000,000 | 1.798379s | 1.185367s | 2.387424s | 2.697776s |
-| 100,000,000 | 19.056227s | 15.055776s | 87.834218s | 34.960803s |
+| 100 | 0.000012s | 0.000004s | 0.000003s | 0.000017s |
+| 1,000 | 0.000104s | 0.000051s | 0.000033s | 0.000074s |
+| 10,000 | 0.000832s | 0.000438s | 0.000416s | 0.000711s |
+| 100,000 | 0.009211s | 0.005350s | 0.005989s | 0.010483s |
+| 1,000,000 | 0.096160s | 0.060919s | 0.078841s | 0.124613s |
+| 10,000,000 | 1.024658s | 0.675500s | 1.258083s | 1.469666s |
+| 100,000,000 | 11.087366s | 8.629399s | 39.067889s | 19.842090s |
 
 #### $O(n)$ Algorithms
 
-| Size | Counting Sort | Radix Sort | Bucket Sort |
-|------|---------------|------------|-------------|
-| 100 | 0.001196s | 0.000006s | 0.000025s |
-| 1,000 | 0.001064s | 0.000028s | 0.000086s |
-| 10,000 | 0.000657s | 0.000171s | 0.000394s |
-| 100,000 | 0.001356s | 0.001853s | 0.005591s |
-| 1,000,000 | 0.006071s | 0.017115s | 0.076014s |
-| 10,000,000 | 0.066816s | 0.171463s | 0.765687s |
-| 100,000,000 | 0.863923s | 1.728238s | 6.764019s |
+| Size | Counting Sort | Radix Sort |
+|------|---------------|------------|
+| 100 | 0.000599s | 0.000003s |
+| 1,000 | 0.000557s | 0.000018s |
+| 10,000 | 0.000386s | 0.000115s |
+| 100,000 | 0.000699s | 0.001030s |
+| 1,000,000 | 0.003587s | 0.010058s |
+| 10,000,000 | 0.053088s | 0.100978s |
+| 100,000,000 | 0.591969s | 1.057056s |
 
-### 3.3 Best/Worst Case Summary
+### 3.3 Operation Count Analysis (Bubble Sort)
+
+The `bubble_sort_stats()` function tracks comparisons and swaps for detailed algorithmic analysis.
+
+#### Actual Counts (n = 10,000)
+
+| Pattern | Comparisons | Swaps | Time |
+|---------|-------------|-------|------|
+| Random | 49,967,034 | 25,063,713 | 0.041s |
+| Sorted | 9,999 | 0 | 0.000003s |
+| Reverse Sorted | 49,995,000 | 49,995,000 | 0.020s |
+| Nearly Sorted | 49,912,379 | 3,031,830 | 0.021s |
+
+#### Scaling with Size (Random Pattern)
+
+| Size | Comparisons | Swaps | Time |
+|------|-------------|-------|------|
+| 100 | 4,650 | 2,554 | 0.000016s |
+| 1,000 | 498,275 | 245,886 | 0.000955s |
+| 5,000 | 12,495,609 | 6,205,093 | 0.020s |
+| 10,000 | 49,967,034 | 25,063,713 | 0.041s |
+| 50,000 | 1,249,970,149 | 626,215,467 | 1.69s |
+
+**Key observations:**
+- **Sorted input**: Only $n-1$ comparisons and 0 swaps (early termination after first pass).
+- **Reverse-sorted input**: Exactly $\frac{n(n-1)}{2}$ comparisons AND swaps (theoretical worst case).
+- **Random input**: ~$\frac{n(n-1)}{2}$ comparisons, ~$\frac{n(n-1)}{4}$ swaps (half elements need swapping on average).
+- Comparison count directly correlates with execution time.
+
+### 3.4 Best/Worst Case Summary
 
 | Algorithm | Best Input | Worst Input | Notes |
 |-----------|------------|-------------|-------|
@@ -226,6 +254,24 @@ Run the full benchmark (including large sizes up to 100M where applicable):
 ./bin/benchmark
 ```
 
+Run only the stats benchmark (comparison/swap counts for Bubble Sort):
+
+```bash
+./bin/benchmark --stats-only
+```
+
+Regenerate plots from existing CSV data:
+
+```bash
+./bin/benchmark --plot-only
+```
+
+Run without extended sizes (faster, max 1M elements):
+
+```bash
+./bin/benchmark --no-large-sizes
+```
+
 On macOS, install gnuplot first:
 
 ```bash
@@ -241,7 +287,7 @@ brew install gnuplot
 ![Basic sorts (log)](results/1_basic_sorts_log.png)
 
 This figure plots Selection, Bubble, and Insertion sort on a log-scale y-axis.
-Because the vertical axis is logarithmic, the relative growth rates are easier to compare even when times diverge strongly at larger `n`.
+Because the vertical axis is logarithmic, the relative growth rates are easier to compare even when times diverge strongly at larger $n$.
 
 * Bubble and Insertion typically track each other but may diverge depending on early-stopping optimizations.
 * Selection sort often shows a flatter but consistently slow behavior because it always scans the unsorted tail fully.
