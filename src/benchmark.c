@@ -1,4 +1,5 @@
 #include <stdbool.h>
+#include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -82,11 +83,11 @@ static const int QUADRATIC_SIZES[] = {
     5000,
     10000,
     20000,
-    50000
+    100000
 };
 
 /* Pattern test sizes optimized for each complexity class */
-#define PATTERN_SIZE_QUADRATIC     50000      // O(n^2)
+#define PATTERN_SIZE_QUADRATIC     100000      // O(n^2)
 #define PATTERN_SIZE_LINEARITHMIC  5000000    // O(n log n)
 #define PATTERN_SIZE_LINEAR        50000000   // O(n)
 
@@ -106,10 +107,29 @@ static void counting_sort_wrapper(int *arr, int n) {
 }
 
 double benchmark_sort(void (*sort_func)(int*, int), int *arr, int n) {
-    clock_t start = clock();
+    struct timespec start, end;
+    clock_gettime(CLOCK_MONOTONIC, &start);
     sort_func(arr, n);
-    clock_t end = clock();
-    return ((double)(end - start)) / CLOCKS_PER_SEC;
+    clock_gettime(CLOCK_MONOTONIC, &end);
+
+    uint64_t elapsed_ns = (uint64_t)(end.tv_sec - start.tv_sec) * 1000000000ULL
+                        + (uint64_t)(end.tv_nsec - start.tv_nsec);
+    return (double)elapsed_ns / 1e9;
+}
+
+BenchmarkResult benchmark_sort_stats(SortStats (*sort_func)(int*, int), int *arr, int n) {
+    BenchmarkResult result = {0};
+    struct timespec start, end;
+
+    clock_gettime(CLOCK_MONOTONIC, &start);
+    result.stats = sort_func(arr, n);
+    clock_gettime(CLOCK_MONOTONIC, &end);
+
+    result.time_ns = (uint64_t)(end.tv_sec - start.tv_sec) * 1000000000ULL
+                   + (uint64_t)(end.tv_nsec - start.tv_nsec);
+    result.time_sec = (double)result.time_ns / 1e9;
+
+    return result;
 }
 
 static const char *pattern_names[] = {
@@ -189,7 +209,7 @@ static int get_pattern_test_size(AlgorithmComplexity complexity, bool include_la
     if (!include_large_inputs) {
         // Conservative sizes when large inputs disabled
         switch (complexity) {
-            case COMPLEXITY_QUADRATIC:    return 10000;
+            case COMPLEXITY_QUADRATIC:    return 100000;
             case COMPLEXITY_LINEARITHMIC: return 100000;
             case COMPLEXITY_LINEAR:       return 1000000;
         }
@@ -345,4 +365,51 @@ void run_all_benchmarks(bool include_large_inputs) {
     benchmark_by_pattern(bucket_sort, "BucketSort", COMPLEXITY_LINEAR, include_large_inputs);
 
     printf("\n=== All Benchmarks Completed ===\n");
+}
+
+void run_stats_benchmark(void) {
+    printf("=== Bubble Sort Statistics Benchmark ===\n\n");
+
+    FILE *fp = fopen("results/stats_benchmark.csv", "w");
+    if (fp == NULL) {
+        printf("Error: Could not open results/stats_benchmark.csv for writing\n");
+        return;
+    }
+    fprintf(fp, "Algorithm,Pattern,Size,Time,Comparisons,Swaps\n");
+
+    const char *pattern_names[] = {"Random", "Sorted", "ReverseSorted", "NearlySorted"};
+    DataPattern patterns[] = {RANDOM, SORTED, REVERSE_SORTED, NEARLY_SORTED};
+    int sizes[] = {100, 1000, 5000, 10000, 20000, 50000};
+    int num_sizes = sizeof(sizes) / sizeof(sizes[0]);
+
+    for (int p = 0; p < 4; p++) {
+        printf("Pattern: %s\n", pattern_names[p]);
+        for (int s = 0; s < num_sizes; s++) {
+            int size = sizes[s];
+            int *arr = (int*)malloc(size * sizeof(int));
+            if (arr == NULL) {
+                printf("  Memory allocation failed for size %d\n", size);
+                continue;
+            }
+
+            generate_data(arr, size, patterns[p]);
+            BenchmarkResult result = benchmark_sort_stats(bubble_sort_stats, arr, size);
+
+            printf("  n=%6d: time=%.6fs, comparisons=%llu, swaps=%llu\n",
+                   size, result.time_sec,
+                   (unsigned long long)result.stats.comparisons,
+                   (unsigned long long)result.stats.swaps);
+
+            fprintf(fp, "BubbleSort,%s,%d,%.9f,%llu,%llu\n",
+                    pattern_names[p], size, result.time_sec,
+                    (unsigned long long)result.stats.comparisons,
+                    (unsigned long long)result.stats.swaps);
+
+            free(arr);
+        }
+        printf("\n");
+    }
+
+    fclose(fp);
+    printf("Results saved to results/stats_benchmark.csv\n");
 }
